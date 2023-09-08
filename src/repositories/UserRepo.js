@@ -1,4 +1,3 @@
-const db = require("../db");
 const { TABLE } = require("../utils/constants");
 const Repository = require("./Repository");
 

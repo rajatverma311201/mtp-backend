@@ -8,7 +8,7 @@ class XirrRepo extends Repository {
   }
 
   async findByUserId(userId) {
-    query = `SELECT * FROM xirrs WHERE user_id=${userId}`;
+    const query = `SELECT * FROM xirrs WHERE user_id=${userId}`;
     return db.query(query);
   }
 
