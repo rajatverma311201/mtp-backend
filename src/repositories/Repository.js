@@ -1,5 +1,5 @@
-const db = require("../db");
-const { ERROR } = require("../utils/constants");
+const db = require('../db');
+const { ERROR } = require('../utils/constants');
 
 class Repository {
   constructor(tableName) {
@@ -19,8 +19,17 @@ class Repository {
     return true;
   }
 
-  async find() {
-    return db.query(`SELECT * from ${table}`);
+  async find(obj) {
+    let query = `SELECT * from ${this.table}`;
+    if (obj) {
+      const keys = Object.keys(obj);
+      const conditions = keys
+        .map((key) => `${key} = '${obj[key]}'`)
+        .join(' AND ');
+      query += ` WHERE ${conditions}`;
+    }
+    const { rows } = await db.query(query);
+    return rows;
   }
 
   async findById(id) {
@@ -30,26 +39,28 @@ class Repository {
 
     const query = `
         SELECT * 
-        FROM ${table} 
+        FROM ${this.table} 
         WHERE id=${id};
     `;
 
-    return db.query(query);
+    const { rows } = await db.query(query);
+    const [entity] = rows;
+    return entity;
   }
 
   async create(obj) {
-    if (!allFieldsDefined(obj)) {
-      throw new Error(ERROR.MISSING_VALUES);
-    }
+    // if (!this.allFieldsDefined(obj)) {
+    //   throw new Error(ERROR.MISSING_VALUES);
+    // }
 
     const keys = Object.keys(obj);
-    const columnNames = keys.join(", ");
+    const columnNames = keys.join(', ');
 
     const values = Object.values(obj);
-    const columnValues = values.join(", ");
+    const columnValues = values.map((item) => `'${item}'`).join(', ');
 
     const query = `
-        INSERT INTO ${table} (${columnNames}) 
+        INSERT INTO ${this.table} (${columnNames}) 
         VALUES (${columnValues})
     `;
 
@@ -60,15 +71,15 @@ class Repository {
     const uKeys = Object.keys(updateObj);
     const updateData = uKeys
       .map((key, idx) => `${key} = ${updateObj[key]}`)
-      .join(", ");
+      .join(', ');
 
     const cKeys = Object.keys(conditionsObj);
     const conditions = cKeys
       .map((key) => `${key} = ${conditionsObj[key]}`)
-      .join(" AND ");
+      .join(' AND ');
 
     const query = `
-        UPDATE ${table}
+        UPDATE ${this.table}
         SET ${updateData}
         WHERE ${conditions};
     `;
@@ -82,10 +93,10 @@ class Repository {
     }
 
     const keys = Object.keys(obj);
-    const conditions = keys.map((key) => `${key} = ${obj[key]}`).join(" AND ");
+    const conditions = keys.map((key) => `${key} = ${obj[key]}`).join(' AND ');
 
     const query = `
-        DELETE FROM ${table} 
+        DELETE FROM ${this.table} 
         WHERE ${conditions};
     `;
 

@@ -1,19 +1,21 @@
+const HttpStatus = require('http-status');
 const XirrRepo = require('../repositories/XirrRepo');
+const { STATUS } = require('../utils/constants');
 
 module.exports = {
   async getAllInvestements(req, res) {
     try {
       const { rows: investments } = await XirrRepo.findByUserId(1);
 
-      res.status(200).json({
-        status: 'success',
+      res.status(HttpStatus.OK).json({
+        status: STATUS.SUCCESS,
         results: investments.length,
         data: investments,
       });
     } catch (err) {
       console.log(err);
-      res.status(400).json({
-        status: 'fail',
+      res.status(HttpStatus.BAD_REQUEST).json({
+        status: STATUS.FAIL,
         message: err,
       });
     }

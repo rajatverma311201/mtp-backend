@@ -4,6 +4,7 @@ dotenv.config({ path: "./config.env" });
 
 const pool = require("./src/db");
 
+
 const options = {
   user: process.env.DATABASE_USER,
   password: process.env.DATABASE_PASSWORD,

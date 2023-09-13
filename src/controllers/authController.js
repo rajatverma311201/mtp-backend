@@ -1,36 +1,33 @@
-const User = require('./../models/userModel');
-const catchAsync = require('./../utils/catchAsync');
+const UserRepo = require('../repositories/UserRepo');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const AppError = require('./../utils/appError');
 const { promisify } = require('util');
-const Email = require('./../utils/email');
-const crypto = require('crypto');
+const HttpStatus = require('http-status');
+const validator = require('validator');
+
+const { MESSAGE, STATUS } = require('../utils/constants');
+const { STATUS_CODES } = require('http');
+const { nextTick } = require('process');
 
 const createSendToken = (user, statusCode, res) => {
-  const token = signToken(user._id);
-
-  const cookieOptions = {
-    expires: new Date(
-      Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
-    ),
-    httpOnly: true,
-  };
-
-  if (process.env.NODE_ENV === 'production') cookieOptions.secure = true;
+  const token = signToken(user.id);
 
   user.password = undefined;
-  res.cookie('jwt', token, cookieOptions);
+
+  const currDate = Date.now();
+  const finalDate =
+    currDate + parseInt(process.env.JWT_EXPIRE) * 24 * 60 * 60 * 1000;
 
   res.status(statusCode).json({
-    status: 'success',
+    status: STATUS.SUCCESS,
     token,
     data: user,
+    jwtExpire: finalDate,
   });
 };
 
 const signToken = (id) => {
-  return jwt.sign({ id: id }, process.env.JWT_SECRET, {
+  return jwt.sign({ id: id, iat: Date.now() }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE,
   });
 };
@@ -38,18 +35,17 @@ const signToken = (id) => {
 exports.protect = async (req, res, next) => {
   try {
     // 1)getting token and check if its there
-    // console.log(req.headers.authorization);
     let token;
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith('Bearer')
     ) {
       token = req.headers.authorization.split(' ')[1];
-    } else if (req.cookies.jwt) token = req.cookies.jwt;
+    }
     if (!token) {
-      return res.status(401).json({
-        status: 'fail',
-        message: 'please login to get access',
+      return res.status(HttpStatus.UNAUTHORIZED).json({
+        status: STATUS.FAIL,
+        message: MESSAGE.LOGIN,
       });
     }
 
@@ -57,19 +53,20 @@ exports.protect = async (req, res, next) => {
     const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
 
     // 3)Check if user still exists
-    const currentUser = await User.findById(decoded.id);
+    // decoded is the payload we passed while signing the jwt token
+    const currentUser = await UserRepo.findById(decoded.id);
     if (!currentUser) {
-      return res.status(401).json({
-        status: 'fail',
-        message: 'user not found',
+      return res.status(HttpStatus.UNAUTHORIZED).json({
+        status: STATUS.FAIL,
+        message: MESSAGE.NO_USER,
       });
     }
 
     // 4) Check if user changed password after the token was issued
     if (currentUser.changedPasswordAfter(decoded.iat)) {
-      return res.status(401).json({
-        status: 'fail',
-        message: 'password changed,please login again!',
+      return res.status(HttpStatus.UNAUTHORIZED).json({
+        status: STATUS.FAIL,
+        message: MESSAGE.PASSWORD_CHANGED,
       });
     }
 
@@ -77,224 +74,147 @@ exports.protect = async (req, res, next) => {
     req.user = currentUser;
     next();
   } catch (err) {
-    res.status(401).json({
-      status: 'fail',
+    res.status(HttpStatus.UNAUTHORIZED).json({
+      status: STATUS.FAIL,
       message: err,
     });
   }
 };
 
-exports.isLoggedIn = async (req, res, next) => {
-  // console.log(req.cookies);
-  if (req.cookies) {
-    try {
-      // 2)Verification of token
-      const decoded = await promisify(jwt.verify)(
-        req.cookies.jwt,
-        process.env.JWT_SECRET
-      );
+exports.signup = async (req, res, next) => {
+  const {
+    firstName: first_name,
+    lastName: last_name,
+    email,
+    password,
+    mobile,
+  } = req.body;
 
-      // 3)Check if user still exists
-      const currentUser = await User.findById(decoded.id);
-      if (!currentUser) {
-        return next();
-      }
+  const hashPassword = bcrypt.hashSync(password);
 
-      // 4) Check if user changed password after the token was issued
-      if (currentUser.changedPasswordAfter(decoded.iat)) {
-        return next();
-      }
-
-      // 5) Grant access
-      res.locals.user = currentUser;
-      req.user = currentUser;
-      return next();
-    } catch (err) {
-      return next();
-    }
-  }
-  next();
-};
-
-exports.signup = catchAsync(async (req, res, next) => {
-  const newUser = await User.create({
-    name: req.body.name,
-    email: req.body.email,
-    password: req.body.password,
-    passwordConfirm: req.body.passwordConfirm,
+  await UserRepo.create({
+    first_name: first_name.trim(),
+    last_name: last_name.trim(),
+    email: email.trim(),
+    password: hashPassword,
+    mobile: mobile.trim(),
   });
 
-  const url = `${req.protocol}://${req.get('host')}/me`;
-  await new Email(newUser, url).sendWelcome();
+  const rows = await UserRepo.find({ email });
+  const [newUser] = rows;
 
-  createSendToken(newUser, 201, res);
-});
+  createSendToken(newUser, HttpStatus.CREATED, res);
+};
 
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(401).json({
-        status: 'fail',
-        message: 'Please enter username and password',
-      });
-    }
-
-    const user = await User.findOne({ email: email }).select('+password');
+    const rows = await UserRepo.find({ email });
+    const [user] = rows;
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({
-        status: 'fail',
-        message: 'Incorrect username or password',
+      return res.status(HttpStatus.UNAUTHORIZED).json({
+        status: STATUS.FAIL,
+        message: MESSAGE.INVALID_CREDENTIALS,
       });
     }
 
-    createSendToken(user, 200, res);
-  } catch (err) {
-    res.status(400).json({
-      status: 'fail',
-      message: err,
-    });
-  }
-};
-
-exports.logout = async (req, res, next) => {
-  try {
-    res.cookie('jwt', 'loggedOut', {
-      expires: new Date(Date.now() + 10000),
-      httpOnly: true,
-    });
-    res.status(200).json({
-      status: 'success',
-    });
-  } catch (err) {
-    res.status(400).json({
-      status: 'fail',
-      message: err,
+    createSendToken(user, HttpStatus.OK, res);
+  } catch (error) {
+    res.status(HttpStatus.BAD_REQUEST).json({
+      status: STATUS.FAIL,
+      message: error,
     });
   }
 };
 
 exports.restrictTo = (...roles) => {
   return (req, res, next) => {
-    // const roles = ['admin', 'lead-guide'];
-
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        status: 'fail',
-        message: 'You dont have permission',
+      return res.status(HttpStatus.FORBIDDEN).json({
+        status: STATUS.FAIL,
+        message: MESSAGE.NO_PERMISSION,
       });
     }
     next();
   };
 };
 
-exports.forgotPassword = async (req, res, next) => {
-  try {
-    // 1)Finding user
-    const user = await User.findOne({ email: req.body.email });
-    if (!user) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'User does not exist,email does not match with our database.',
-      });
-    }
+exports.validateSignupRequest = async (req, res, next) => {
+  const {
+    firstName: first_name,
+    lastName: last_name,
+    email,
+    password,
+    mobile,
+  } = req.body;
 
-    // 2)Generate random reset token
-    const resetToken = user.createPasswordResetToken();
-    await user.save({ validateBeforeSave: false });
+  const fullName = first_name + last_name;
+  let message = '';
 
-    // 3)send it to users email
-    const resetURL = `${req.protocol}://${req.get(
-      'host'
-    )}/api/v1/users/resetPassword/${resetToken}`;
+  if (validator.isEmpty(fullName)) {
+    message += 'Name must not be Empty!\n';
+  }
 
-    const message = `To reset the password Click on this URL :  ${resetURL}`;
-    try {
-      // await sendEmail({
-      //   email: user.email,
-      //   subject: 'password reset token',
-      //   text: message,
-      // });
+  if (!validator.isAlpha(fullName)) {
+    message += 'Name Should Only contain Letters!\n';
+  }
 
-      await new Email(user, resetURL).sendPasswordReset();
+  if (!validator.isEmail(email)) {
+    message += 'Email Invalid!\n';
+  }
 
-      res.status(200).json({
-        status: 'success',
-        message: 'token sent',
-      });
-    } catch (err) {
-      user.passwordResetToken = undefined;
-      user.passwordResetExpires = undefined;
-      await user.save({ validateBeforeSave: false });
+  if (!validator.isStrongPassword(password)) {
+    message += 'Weak Password!\n';
+  }
 
-      return res.status(403).json({
-        status: 'fail',
-        message: err,
-      });
-    }
-  } catch (err) {
-    return res.status(403).json({
-      status: 'fail',
-      message: err,
+  const regexp = new RegExp('^[1-9]\\d{9}$');
+  if (!regexp.test(mobile)) {
+    message += 'Mobile Number Invalid!\n';
+  }
+
+  if (message) {
+    return res.status(HttpStatus.FORBIDDEN).json({
+      status: STATUS.FAIL,
+      message,
     });
   }
+
+  const emailExist = await UserRepo.find({ email });
+  const mobileExist = await UserRepo.find({ mobile });
+
+  if (emailExist.length || mobileExist.length) {
+    return res.status(HttpStatus.CONFLICT).json({
+      status: STATUS.FAIL,
+      message: 'User Already Exists!',
+    });
+  }
+
+  next();
 };
 
-exports.resetPassword = async (req, res, next) => {
-  // 1)get user based on token
-  const hashToken = crypto
-    .createHash('sha256')
-    .update(req.params.token)
-    .digest('hex');
+exports.validateLoginRequest = async (req, res, next) => {
+  const { email, password } = req.body;
 
-  const user = await User.findOne({
-    passwordResetToken: hashToken,
-    passwordResetExpires: { $gt: Date.now() },
-  });
-  if (!user) {
-    return res.status(403).json({
-      status: 'fail',
-      message: 'token invalid or expired',
+  let message = '';
+
+  if (!email || !password) {
+    return res.status(HttpStatus.UNAUTHORIZED).json({
+      status: STATUS.FAIL,
+      message: MESSAGE.ENTER_CREDENTIALS,
     });
   }
 
-  user.password = req.body.password;
-  user.passwordConfirm = req.body.passwordConfirm;
+  if (!validator.isEmail(email)) {
+    message += 'Email Invalid!\n';
+  }
 
-  user.passwordResetToken = undefined;
-  user.passwordResetExpires = undefined;
-  await user.save();
-
-  createSendToken(user, 200, res);
-};
-
-exports.updatePassword = async (req, res, next) => {
-  try {
-    // 1) get user
-    const user = await User.findById(req.user.id).select('+password');
-
-    // 2) check if posted password is correct
-    if (!(await user.correctPassword(req.body.password, user.password))) {
-      return res.status(401).json({
-        status: 'fail',
-        message: 'Incorrect password',
-      });
-    }
-
-    // 3) if so, update password
-
-    user.password = req.body.newPassword;
-    user.passwordConfirm = req.body.newPasswordConfirm;
-
-    await user.save();
-
-    // 4) log user in, send JWT
-    createSendToken(user, 200, res);
-  } catch (err) {
-    return res.status(403).json({
-      status: 'fail',
-      message: err,
+  if (message) {
+    return res.status(HttpStatus.FORBIDDEN).json({
+      status: STATUS.FAIL,
+      message,
     });
   }
+
+  next();
 };
