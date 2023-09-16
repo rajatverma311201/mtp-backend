@@ -1,6 +1,6 @@
-const db = require("../db");
-const { ERROR, TABLE } = require("../utils/constants");
-const Repository = require("./Repository");
+const db = require('../db');
+const { ERROR, TABLE } = require('../utils/constants');
+const Repository = require('./Repository');
 
 class XirrRepo extends Repository {
   constructor(tableName) {
@@ -9,7 +9,9 @@ class XirrRepo extends Repository {
 
   async findByUserId(userId) {
     const query = `SELECT * FROM xirrs WHERE user_id=${userId}`;
-    return db.query(query);
+    const { rows } = await db.query(query);
+
+    return rows;
   }
 
   async create({ userId, date, amount }) {
@@ -36,10 +38,10 @@ class XirrRepo extends Repository {
     const updateObj = {};
 
     if (date) {
-      updateObj["date"] = date;
+      updateObj['date'] = date;
     }
     if (amount) {
-      updateObj["amount"] = amount;
+      updateObj['amount'] = amount;
     }
 
     const conditionsObj = {
