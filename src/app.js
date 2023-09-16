@@ -4,9 +4,12 @@ const xirrRouter = require('./routes/xirrRoutes');
 const authRouter = require('./routes/authRoutes');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const morgan = require('morgan');
 const app = express();
 
 app.use(cors());
+
+app.use(morgan('dev'));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

@@ -5,7 +5,7 @@ const { STATUS } = require('../utils/constants');
 module.exports = {
   async getAllInvestements(req, res) {
     try {
-      const { rows: investments } = await XirrRepo.findByUserId(1);
+      const investments = await XirrRepo.findByUserId(req.user.id);
 
       res.status(HttpStatus.OK).json({
         status: STATUS.SUCCESS,
@@ -13,7 +13,25 @@ module.exports = {
         data: investments,
       });
     } catch (err) {
-      console.log(err);
+      res.status(HttpStatus.BAD_REQUEST).json({
+        status: STATUS.FAIL,
+        message: err,
+      });
+    }
+  },
+
+  async addInvestment(req, res) {
+    try {
+      const userId = req.user.id;
+      const date = req.body.date;
+      const amount = req.body.amount;
+
+      await XirrRepo.create({ userId, date, amount });
+
+      res.status(HttpStatus.CREATED).json({
+        status: STATUS.SUCCESS,
+      });
+    } catch (err) {
       res.status(HttpStatus.BAD_REQUEST).json({
         status: STATUS.FAIL,
         message: err,

@@ -19,6 +19,7 @@
     "express": "^4.18.2",
     "http-status": "^1.7.0",
     "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
     "pg": "^8.11.3",
     "util": "^0.12.5",
     "validator": "^13.11.0"

@@ -55,6 +55,7 @@ exports.protect = async (req, res, next) => {
     // 3)Check if user still exists
     // decoded is the payload we passed while signing the jwt token
     const currentUser = await UserRepo.findById(decoded.id);
+
     if (!currentUser) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
         status: STATUS.FAIL,
@@ -63,7 +64,7 @@ exports.protect = async (req, res, next) => {
     }
 
     // 4) Check if user changed password after the token was issued
-    if (currentUser.changedPasswordAfter(decoded.iat)) {
+    if (changedPasswordAfter(decoded.iat, currentUser.password_changed_at)) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
         status: STATUS.FAIL,
         message: MESSAGE.PASSWORD_CHANGED,
@@ -73,10 +74,10 @@ exports.protect = async (req, res, next) => {
     // 5) Grant access
     req.user = currentUser;
     next();
-  } catch (err) {
+  } catch (error) {
     res.status(HttpStatus.UNAUTHORIZED).json({
       status: STATUS.FAIL,
-      message: err,
+      message: error,
     });
   }
 };
@@ -98,6 +99,7 @@ exports.signup = async (req, res, next) => {
     email: email.trim(),
     password: hashPassword,
     mobile: mobile.trim(),
+    password_changed_at: Date.now(),
   });
 
   const rows = await UserRepo.find({ email });
@@ -110,8 +112,11 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
+    console.log(req.body);
     const rows = await UserRepo.find({ email });
+
     const [user] = rows;
+    console.log(rows);
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
         status: STATUS.FAIL,
@@ -217,4 +222,11 @@ exports.validateLoginRequest = async (req, res, next) => {
   }
 
   next();
+};
+
+changedPasswordAfter = (jwtIssuedAt, passwordChangedAt) => {
+  if (jwtIssuedAt < passwordChangedAt) {
+    return true;
+  }
+  return false;
 };
