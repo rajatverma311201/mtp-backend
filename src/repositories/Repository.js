@@ -88,9 +88,9 @@ class Repository {
   }
 
   async delete(obj) {
-    if (!allFieldsDefined(obj)) {
-      throw new Error(ERROR.MISSING_VALUES);
-    }
+    // if (!allFieldsDefined(obj)) {
+    //   throw new Error(ERROR.MISSING_VALUES);
+    // }
 
     const keys = Object.keys(obj);
     const conditions = keys.map((key) => `${key} = ${obj[key]}`).join(' AND ');

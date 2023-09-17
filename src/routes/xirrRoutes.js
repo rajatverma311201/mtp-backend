@@ -9,6 +9,7 @@ router.use(authController.protect);
 router
   .route('/')
   .get(xirrController.getAllInvestements)
-  .post(xirrController.addInvestment);
+  .post(xirrController.addInvestment)
+  .delete(xirrController.deleteInvestment);
 
 module.exports = router;
