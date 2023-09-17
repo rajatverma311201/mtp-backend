@@ -52,7 +52,7 @@ class XirrRepo extends Repository {
     return super.update(updateObj, conditionsObj);
   }
 
-  async delete(xirrId, userId) {
+  async deleteById(xirrId, userId) {
     if (!xirrId) {
       throw new Error(`Xirr ${ERROR.ID_MISSING}`);
     }
