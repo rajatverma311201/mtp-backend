@@ -26,8 +26,6 @@ module.exports = {
       const date = req.body.date;
       const amount = req.body.amount;
 
-      console.log(date);
-
       await XirrRepo.create({ userId, date, amount });
 
       res.status(HttpStatus.CREATED).json({
@@ -45,13 +43,12 @@ module.exports = {
     try {
       const userId = req.user.id;
       const date = req.body.date;
-      const formattedDate = new Date(date).toISOString().split('T')[0];
 
-      console.log({ date: formattedDate });
+      console.log(date);
 
       await XirrRepo.delete({
         user_id: userId,
-        date: `"${formattedDate}"`,
+        date: `'${date}'`,
       });
 
       res.status(HttpStatus.OK).json({
