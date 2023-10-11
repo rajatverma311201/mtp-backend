@@ -7,7 +7,11 @@ const cors = require('cors');
 const morgan = require('morgan');
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: 'https://mtp-frontend.vercel.app',
+  })
+);
 
 app.use(morgan('dev'));
 
