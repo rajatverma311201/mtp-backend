@@ -1,15 +1,26 @@
 const express = require('express');
+const axios = require('axios');
 const userRouter = require('./routes/userRoutes');
 const xirrRouter = require('./routes/xirrRoutes');
 const authRouter = require('./routes/authRoutes');
+const stockRouter = require('./routes/stockRoutes');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const morgan = require('morgan');
 const app = express();
 
+const schedule = require('node-schedule');
+
+// const job = schedule.scheduleJob('0 * * *', async function () {
+
+// });
+
 app.use(
   cors({
-    origin: 'https://mtp-frontend.vercel.app',
+    origin:
+      process.env.NODE_ENV == 'development'
+        ? '*'
+        : 'https://mtp-frontend.vercel.app',
   })
 );
 
@@ -29,5 +40,6 @@ app.get('/', (req, res) => {
 app.use('/api/users', userRouter);
 app.use('/api/xirrs', xirrRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/stocks', stockRouter);
 
 module.exports = app;

@@ -1,9 +1,8 @@
-const dotenv = require("dotenv");
-const app = require("./src/app");
-dotenv.config({ path: "./config.env" });
+const dotenv = require('dotenv');
+dotenv.config({ path: './config.env' });
+const app = require('./src/app');
 
-const pool = require("./src/db");
-
+const pool = require('./src/db');
 
 const options = {
   user: process.env.DATABASE_USER,

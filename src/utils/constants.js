@@ -21,4 +21,5 @@ exports.STATUS = {
 exports.TABLE = {
   USERS: 'users',
   XIRRS: 'xirrs',
+  STOCKS: 'stocks',
 };
